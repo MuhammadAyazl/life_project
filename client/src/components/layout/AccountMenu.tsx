@@ -41,7 +41,6 @@ export function AccountMenu() {
   const items: { href: string; label: string; icon: IconName }[] = [
     { href: '/account', label: 'Manage account', icon: 'user' },
     { href: '/account/orders', label: 'My Orders', icon: 'box' },
-    { href: '/plus', label: user.plan.isMember ? 'My Plus membership' : 'Become a Plus member', icon: 'crown' },
     user.role === 'user'
       ? { href: '/create-store', label: 'Create your store', icon: 'store' }
       : { href: '/seller', label: 'Seller dashboard', icon: 'store' },

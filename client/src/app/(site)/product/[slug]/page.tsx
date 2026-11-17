@@ -102,12 +102,13 @@ export default async function ProductPage({ params }: { params: Params }) {
 
         <div>
           <h1 className="text-3xl font-bold sm:text-4xl">{p.name}</h1>
-          <div className="mt-3 mb-6 flex items-center gap-3 text-sm text-muted">
+          {/* clicking the rating jumps to the Reviews tab below */}
+          <a href="#reviews" className="mt-3 mb-6 flex w-fit items-center gap-3 text-sm text-muted hover:text-ink">
             <Stars value={p.rating} />
-            <span>
+            <span className="underline-offset-2 hover:underline">
               {p.numReviews} {p.numReviews === 1 ? 'Review' : 'Reviews'}
             </span>
-          </div>
+          </a>
           <div className="flex items-baseline gap-3">
             <span className="font-display text-3xl font-bold">{money(p.price)}</span>
             {p.mrp > p.price && <s className="text-xl text-muted">{money(p.mrp)}</s>}

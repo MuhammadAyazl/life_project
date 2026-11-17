@@ -5,7 +5,9 @@ export const SITE = {
     'ShopFussion is your destination for the latest smart gadgets - earbuds, headphones, smart watches, speakers and more. Free shipping, 7-day easy returns and 24/7 support.',
   tagline: 'Gadgets you’ll love. Prices you’ll trust.',
   email: 'contact@shopfussion.com',
-  phone: '+971 00 000 0000',
+  phone: '+971 54 383 5133',
+  whatsapp: '+971 54 383 5133',
+  whatsappLink: 'https://wa.me/971543835133',
   logo: '/images/logo1.png',
   ogImage: '/images/RGB_Gamer_Girl_Portrait.png',
   keywords: [

@@ -40,7 +40,7 @@ export default async function HomePage() {
     <Link
       key={c}
       href={`/shop?category=${encodeURIComponent(c)}`}
-      className="mr-3 rounded-full px-4 py-1.5 text-lg font-medium whitespace-nowrap text-muted transition hover:bg-brand hover:text-brand-ink"
+      className="mr-3 rounded-full px-4 py-1.5 text-base font-medium whitespace-nowrap text-muted transition hover:bg-brand hover:text-brand-ink"
     >
       {c}
     </Link>

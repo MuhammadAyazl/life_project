@@ -36,14 +36,15 @@ export function Hero() {
             initial={{ y: 18 }}
             animate={{ y: 0 }}
             transition={{ duration: 0.7, ease, delay: 0.1 }}
-            className="mt-5 mb-6 text-[clamp(2rem,4vw,3.1rem)] leading-[1.05] font-bold"
+            className="mt-5 mb-6 font-elegant text-[clamp(2.3rem,4.6vw,3.6rem)] leading-[1.08] font-normal tracking-[0.01em]"
           >
             Gadgets you’ll love. <span className="opacity-55">Prices you’ll trust.</span>
           </motion.h1>
           <motion.div initial={{ opacity: 0, y: 16 }} animate={{ opacity: 1, y: 0 }} transition={{ duration: 0.6, ease, delay: 0.25 }}>
             <p className="text-sm font-medium">Starts from</p>
             <p className="mb-6 font-display text-3xl font-bold">$4.90</p>
-            <ButtonLink href="/shop" variant="inverse" size="lg">
+            {/* lg size minus 4px on every side: 32px x 10px */}
+            <ButtonLink href="/shop" variant="inverse" size="lg" className="px-8! py-2.5!">
               SHOP NOW
             </ButtonLink>
           </motion.div>

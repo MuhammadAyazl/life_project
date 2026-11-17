@@ -2,7 +2,7 @@
 
 import Link from 'next/link';
 import { useRouter } from 'next/navigation';
-import { useState } from 'react';
+import { useEffect, useRef, useState } from 'react';
 import { motion } from 'framer-motion';
 import { api, errorMessage } from '@/lib/api';
 import { shortDate, cn } from '@/lib/format';
@@ -76,9 +76,28 @@ export function ProductTabs({ productId, description, reviews }: { productId: st
   const [tab, setTab] = useState<'desc' | 'reviews'>('desc');
   const { user } = useAuth();
   const router = useRouter();
+  const box = useRef<HTMLDivElement>(null);
+
+  // ".../product/x#reviews" (from clicking stars) opens the Reviews tab and scrolls to it
+  useEffect(() => {
+    let done = false;
+    const open = () => {
+      if (done || window.location.hash !== '#reviews') return;
+      done = true;
+      setTab('reviews');
+      setTimeout(() => box.current?.scrollIntoView({ behavior: 'smooth', block: 'start' }), 60);
+    };
+    // Next.js client navigation sets the #hash just after this component mounts, so check again shortly
+    const timers = [0, 150, 500].map((ms) => setTimeout(open, ms));
+    window.addEventListener('hashchange', open);
+    return () => {
+      timers.forEach(clearTimeout);
+      window.removeEventListener('hashchange', open);
+    };
+  }, []);
 
   return (
-    <div className="mt-14 max-w-3xl">
+    <div id="reviews" ref={box} className="mt-14 max-w-3xl scroll-mt-28">
       <div role="tablist" className="flex gap-7 border-b border-line">
         {(
           [

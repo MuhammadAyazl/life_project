@@ -45,6 +45,16 @@ export function Footer() {
                 {s === 'LinkedIn' ? 'in' : s[0]}
               </a>
             ))}
+            {/* WhatsApp: opens a chat with the shop number */}
+            <a
+              href={SITE.whatsappLink}
+              target="_blank"
+              rel="noopener noreferrer"
+              aria-label={`Chat on WhatsApp ${SITE.whatsapp}`}
+              className="grid size-9 place-items-center rounded-full border border-line text-[#25D366] transition hover:border-[#25D366] hover:bg-[#25D366] hover:text-white"
+            >
+              <Icon name="whatsapp" size={17} strokeWidth={0} className="fill-current" />
+            </a>
           </div>
         </div>
         {COLS.map((c) => (
@@ -66,7 +76,15 @@ export function Footer() {
           <ul className="grid gap-3 text-[0.92rem] text-muted">
             <li className="flex items-center gap-2.5">
               <Icon name="phone" size={16} className="text-brand" />
-              {SITE.phone}
+              <a href={`tel:${SITE.phone.replace(/[^+\d]/g, '')}`} className="hover:text-brand">
+                {SITE.phone}
+              </a>
+            </li>
+            <li className="flex items-center gap-2.5">
+              <Icon name="whatsapp" size={16} strokeWidth={0} className="fill-[#25D366]" />
+              <a href={SITE.whatsappLink} target="_blank" rel="noopener noreferrer" className="hover:text-brand">
+                WhatsApp {SITE.whatsapp}
+              </a>
             </li>
             <li className="flex items-center gap-2.5">
               <Icon name="mail" size={16} className="text-brand" />

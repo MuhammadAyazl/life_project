@@ -51,7 +51,15 @@ export function ProductCard({ product, priority }: { product: Product; priority?
             {product.mrp > product.price && <s className="ml-1.5 text-xs opacity-70">{money(product.mrp)}</s>}
           </span>
         </div>
-        <Stars value={product.rating} className="text-sm" />
+      </Link>
+      {/* stars open the product page straight on the Reviews tab */}
+      <Link
+        href={`${href}#reviews`}
+        aria-label={`${product.rating} out of 5 stars, ${product.numReviews} reviews - read reviews`}
+        className="mt-0.5 inline-flex items-center gap-1.5 rounded text-sm transition hover:opacity-75"
+      >
+        <Stars value={product.rating} />
+        <span className="text-xs text-muted">({product.numReviews})</span>
       </Link>
     </motion.article>
   );

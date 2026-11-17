@@ -1,18 +1,16 @@
 import type { Metadata, Viewport } from 'next';
-import { Inter, Plus_Jakarta_Sans } from 'next/font/google';
+import { Great_Vibes, Inter, Poiret_One } from 'next/font/google';
 import { Providers } from '@/components/providers/Providers';
 import { JsonLd } from '@/components/seo/JsonLd';
 import { SITE } from '@/lib/config';
 import './globals.css';
 
-// Inter for UI/body text, Plus Jakarta Sans for headings - both self-hosted by next/font (no layout shift).
+// Body text uses Apple's system font (San Francisco) on iPhone/Mac; Inter is the look-alike everywhere else.
+// Poiret One: elegant thin display face for the hero headline. Great Vibes: script face for the logo name.
+// All self-hosted by next/font (no layout shift, no request to Google from the visitor's browser).
 const inter = Inter({ subsets: ['latin'], variable: '--font-inter', display: 'swap' });
-const jakarta = Plus_Jakarta_Sans({
-  subsets: ['latin'],
-  variable: '--font-jakarta',
-  weight: ['500', '600', '700', '800'],
-  display: 'swap',
-});
+const elegant = Poiret_One({ subsets: ['latin'], weight: '400', variable: '--font-elegant-src', display: 'swap' });
+const script = Great_Vibes({ subsets: ['latin'], weight: '400', variable: '--font-script-src', display: 'swap' });
 
 export const metadata: Metadata = {
   metadataBase: new URL(SITE.url),
@@ -55,7 +53,7 @@ export const viewport: Viewport = {
 
 export default function RootLayout({ children }: { children: React.ReactNode }) {
   return (
-    <html lang="en" className={`${inter.variable} ${jakarta.variable}`}>
+    <html lang="en" className={`${inter.variable} ${elegant.variable} ${script.variable}`}>
       {/* Browser extensions (e.g. ColorZilla's cz-shortcut-listen, Grammarly) add attributes to <body>
           before React loads; this ignores only <body>'s own attributes, not its children. */}
       <body className="min-h-dvh" suppressHydrationWarning>

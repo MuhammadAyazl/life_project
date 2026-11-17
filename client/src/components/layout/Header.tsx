@@ -13,7 +13,6 @@ import { Logo } from './Logo';
 const NAV = [
   { href: '/', label: 'Home' },
   { href: '/shop', label: 'Shop' },
-  { href: '/plus', label: 'Plus' },
   { href: '/#about', label: 'About' },
   { href: '/#contact', label: 'Contact' },
 ];

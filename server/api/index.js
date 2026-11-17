@@ -2,13 +2,20 @@
 // The TypeScript is compiled to dist/ by `npm run build` before Vercel bundles this file.
 import { createApp } from '../dist/app.js';
 import { connectDB } from '../dist/config/db.js';
+import { bootstrapIfEmpty } from '../dist/services/seedData.js';
 
 const app = createApp();
 let ready = null; // reuse one MongoDB connection across warm invocations
 
+// connect once; on a brand-new empty database also create the admin + demo store (only once ever)
+const start = async () => {
+  await connectDB();
+  if (await bootstrapIfEmpty()) console.log('Empty database: admin and demo data created.');
+};
+
 export default async function handler(req, res) {
   try {
-    ready ??= connectDB();
+    ready ??= start();
     await ready;
   } catch (err) {
     ready = null;

@@ -4,9 +4,11 @@ dist/
 out/
 coverage/
 *.log
+# secrets: every .env file is private (only the .env.example templates are committed)
 .env
-.env.local
-.env.*.local
+.env.*
+!.env.example
+.vercel
 server/uploads/*
 !server/uploads/.gitkeep
 .DS_Store

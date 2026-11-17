@@ -2,7 +2,7 @@ import type { Metadata } from 'next';
 import Link from 'next/link';
 import { notFound } from 'next/navigation';
 import { ProductActions } from '@/components/product/ProductActions';
-import { ProductVisual } from '@/components/product/ProductArt';
+import { ProductGallery } from '@/components/product/ProductGallery';
 import { ProductGrid } from '@/components/product/ProductCard';
 import { ProductTabs } from '@/components/product/ProductTabs';
 import { JsonLd } from '@/components/seo/JsonLd';
@@ -89,16 +89,7 @@ export default async function ProductPage({ params }: { params: Params }) {
       </nav>
 
       <div className="grid items-start gap-8 lg:grid-cols-[1.15fr_1fr] lg:gap-12">
-        <div className="flex flex-col-reverse gap-4 sm:flex-row">
-          {p.images.length > 1 && (
-            <div className="flex gap-3 sm:flex-col">
-              {p.images.map((img, i) => (
-                <ProductVisual key={img} name={`${p.name} photo ${i + 1}`} image={img} className="size-20 shrink-0 rounded-xl border-2 border-line" sizes="80px" />
-              ))}
-            </div>
-          )}
-          <ProductVisual name={p.name} image={p.images[0]} art={p.art} priority className="aspect-square flex-1 rounded-2xl" sizes="(max-width: 1024px) 100vw, 55vw" />
-        </div>
+        <ProductGallery name={p.name} images={p.images} art={p.art} />
 
         <div>
           <h1 className="text-3xl font-bold sm:text-4xl">{p.name}</h1>

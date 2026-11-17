@@ -11,6 +11,19 @@ import { forbidden, notFound } from '../utils/AppError.js';
 import { escapeRegex, objectId } from '../utils/helpers.js';
 import { parse } from '../utils/validate.js';
 import { shopperFilter, toProduct } from '../services/catalog.js';
+import { aiEnabled, aiSearch, type CatalogItem } from '../services/aiSearch.js';
+import rateLimit from 'express-rate-limit';
+import { env } from '../config/env.js';
+
+// AI search calls a paid model: keep it to a sensible number of searches per visitor
+const aiLimiter = rateLimit({
+  windowMs: 60 * 1000,
+  limit: 15,
+  standardHeaders: 'draft-7',
+  legacyHeaders: false,
+  message: { message: 'Too many AI searches. Please wait a minute and try again.' },
+  skip: () => env.isTest,
+});
 
 const router = Router();
 
@@ -61,6 +74,42 @@ router.get('/', async (req, res) => {
 });
 
 /** Lightweight list for the sitemap. */
+/**
+ * POST /api/products/ai-search  { q: "best xiaomi bluetooth under 50" }
+ * Understands a natural-language request and returns ranked products with a short reason each.
+ */
+router.post('/ai-search', aiLimiter, async (req, res) => {
+  const { q } = parse(z.object({ q: z.string().trim().min(2, 'Tell us what you are looking for.').max(200) }), req.body);
+  const docs = await Product.find(await shopperFilter())
+    .sort({ sold: -1, rating: -1 })
+    .limit(300)
+    .populate('store', 'name username')
+    .lean();
+  const catalog: CatalogItem[] = docs.map((p) => ({
+    id: String(p._id),
+    name: p.name,
+    category: p.category,
+    description: p.description,
+    price: p.price,
+    mrp: p.mrp,
+    rating: p.rating,
+    numReviews: p.numReviews,
+    sold: p.sold,
+    inStock: p.inStock,
+  }));
+  const result = await aiSearch(q, catalog);
+  const byId = new Map(docs.map((d) => [String(d._id), d]));
+  res.json({
+    mode: result.mode,
+    interpretation: result.interpretation,
+    results: result.picks.map((p) => ({ reason: p.reason, product: toProduct(byId.get(p.id)!) })),
+  });
+});
+
+router.get('/ai-search/status', (_req, res) => {
+  res.json({ ai: aiEnabled() });
+});
+
 router.get('/sitemap', async (_req, res) => {
   const items = await Product.find(await shopperFilter())
     .select('slug updatedAt')

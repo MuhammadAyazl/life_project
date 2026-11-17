@@ -3,13 +3,14 @@ import Link from 'next/link';
 import { Suspense } from 'react';
 import { ProductGrid } from '@/components/product/ProductCard';
 import { CategoryChips, SortSelect } from '@/components/shop/ShopControls';
+import { AiResults } from '@/components/shop/AiResults';
 import { EmptyState } from '@/components/ui/misc';
 import { CATEGORIES } from '@/lib/config';
 import { serverGet } from '@/lib/server-api';
 import type { Product } from '@/lib/types';
 import { cn } from '@/lib/format';
 
-type SP = Promise<{ category?: string; q?: string; sort?: string; page?: string }>;
+type SP = Promise<{ category?: string; q?: string; sort?: string; page?: string; ai?: string }>;
 
 export async function generateMetadata({ searchParams }: { searchParams: SP }): Promise<Metadata> {
   const { category, q } = await searchParams;
@@ -28,6 +29,17 @@ export async function generateMetadata({ searchParams }: { searchParams: SP }): 
 
 export default async function ShopPage({ searchParams }: { searchParams: SP }) {
   const sp = await searchParams;
+
+  // AI search: the AI ranks products for the request; skip the normal keyword list
+  if (sp.ai === '1' && sp.q?.trim()) {
+    return (
+      <>
+        <h1 className="text-3xl font-bold">Best matches for “{sp.q.slice(0, 80)}”</h1>
+        <AiResults q={sp.q.slice(0, 200)} />
+      </>
+    );
+  }
+
   const page = Math.max(1, Number(sp.page) || 1);
   const qs = new URLSearchParams();
   if (sp.category) qs.set('category', sp.category);

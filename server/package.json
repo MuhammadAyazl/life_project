@@ -10,11 +10,12 @@
     "start": "node --env-file=.env dist/index.js",
     "seed": "tsx --env-file=.env src/scripts/seed.ts",
     "migrate:uploads": "tsx --env-file=.env src/scripts/migrate-uploads.ts",
-    "admin:password":"tsx --env-file=.env src/scripts/set-admin-password.ts",
+    "admin:password": "tsx --env-file=.env src/scripts/set-admin-password.ts",
     "typecheck": "tsc --noEmit -p tsconfig.json",
     "test": "node --env-file=.env --import tsx --test --test-concurrency=1 tests/*.test.ts"
   },
   "dependencies": {
+    "@anthropic-ai/sdk": "^1.10.0",
     "bcryptjs": "^3.0.2",
     "compression": "^1.8.0",
     "cookie-parser": "^1.4.7",

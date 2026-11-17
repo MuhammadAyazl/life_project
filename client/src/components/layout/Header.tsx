@@ -17,34 +17,63 @@ const NAV = [
   { href: '/#contact', label: 'Contact' },
 ];
 
-function SearchBox({ className }: { className?: string }) {
+/**
+ * One search bar, two modes:
+ * - normal: keyword search ("xiaomi bluetooth" -> every matching product)
+ * - AI (sparkle button): understands requests like "sab se best xiaomi bluetooth under $50"
+ *   and returns the best matches ranked, with a reason for each.
+ */
+function SearchBox({ className, autoFocus }: { className?: string; autoFocus?: boolean }) {
   const router = useRouter();
   const params = useSearchParams();
   const [q, setQ] = useState(params.get('q') ?? '');
-  useEffect(() => setQ(params.get('q') ?? ''), [params]);
+  const [ai, setAi] = useState(params.get('ai') === '1');
+  useEffect(() => {
+    setQ(params.get('q') ?? '');
+    setAi(params.get('ai') === '1');
+  }, [params]);
 
   return (
     <form
       role="search"
       className={cn(
-        'flex items-center gap-2 rounded-full border border-line bg-chip px-4 py-2 transition focus-within:border-brand focus-within:ring-2 focus-within:ring-brand/20',
+        'flex items-center gap-2 rounded-full border bg-chip py-1.5 pr-1.5 pl-4 transition focus-within:ring-2',
+        ai
+          ? 'border-violet-400 bg-gradient-to-r from-violet-500/10 to-sky-500/10 focus-within:ring-violet-400/30'
+          : 'border-line focus-within:border-brand focus-within:ring-brand/20',
         className,
       )}
       onSubmit={(e) => {
         e.preventDefault();
-        router.push(q.trim() ? `/shop?q=${encodeURIComponent(q.trim())}` : '/shop');
+        const text = q.trim();
+        if (!text) return router.push('/shop');
+        router.push(`/shop?q=${encodeURIComponent(text)}${ai ? '&ai=1' : ''}`);
       }}
     >
-      <Icon name="search" size={16} className="shrink-0 text-muted" />
+      <Icon name={ai ? 'ai' : 'search'} size={16} className={cn('shrink-0', ai ? 'text-violet-500' : 'text-muted')} />
       <input
         type="search"
         value={q}
         onChange={(e) => setQ(e.target.value)}
-        placeholder="Search products"
-        aria-label="Search products"
-        maxLength={60}
+        placeholder={ai ? 'Ask AI: best Xiaomi earbuds under $50' : 'Search products'}
+        aria-label={ai ? 'Ask AI to find products' : 'Search products'}
+        autoFocus={autoFocus}
+        maxLength={ai ? 200 : 60}
         className="w-full min-w-0 bg-transparent text-sm outline-none placeholder:text-muted"
       />
+      <button
+        type="button"
+        onClick={() => setAi((v) => !v)}
+        aria-pressed={ai}
+        title={ai ? 'AI search is on - click for normal search' : 'Turn on AI search'}
+        className={cn(
+          'flex shrink-0 items-center gap-1 rounded-full px-2 py-1 text-[11px] font-semibold transition',
+          ai ? 'bg-gradient-to-r from-violet-500 to-sky-500 text-white shadow' : 'text-muted hover:bg-surface hover:text-violet-500',
+        )}
+      >
+        <Icon name="ai" size={14} strokeWidth={2} />
+        AI
+      </button>
     </form>
   );
 }
@@ -68,9 +97,13 @@ export function Header() {
   const pathname = usePathname();
   const { count, ready } = useCart();
   const [menu, setMenu] = useState(false);
+  const [search, setSearch] = useState(false); // mobile-only search bar
   const [scrolled, setScrolled] = useState(false);
 
-  useEffect(() => setMenu(false), [pathname]);
+  useEffect(() => {
+    setMenu(false);
+    setSearch(false);
+  }, [pathname]);
   useEffect(() => {
     const onScroll = () => setScrolled(window.scrollY > 8);
     onScroll();
@@ -98,10 +131,18 @@ export function Header() {
               </Link>
             ))}
           </nav>
-          <Suspense fallback={<div className="hidden w-60 md:block" />}>
-            <SearchBox className="hidden w-60 md:flex" />
+          <Suspense fallback={<div className="hidden w-72 md:block" />}>
+            <SearchBox className="hidden w-72 md:flex" />
           </Suspense>
           <div className="ml-auto flex items-center gap-3 lg:ml-0">
+            <button
+              className="grid size-9 place-items-center rounded-lg hover:bg-chip md:hidden"
+              onClick={() => setSearch((v) => !v)}
+              aria-label={search ? 'Close search' : 'Search products'}
+              aria-expanded={search}
+            >
+              <Icon name={search ? 'close' : 'search'} size={21} />
+            </button>
             <Link href="/cart" className="relative flex items-center gap-1.5 font-medium" aria-label={`Cart, ${count} items`}>
               <Icon name="cart" size={22} />
               <span className="hidden sm:inline">Cart</span>
@@ -122,9 +163,22 @@ export function Header() {
             </button>
           </div>
         </div>
-        <Suspense>
-          <SearchBox className="mx-4 mb-3 md:hidden" />
-        </Suspense>
+        <AnimatePresence initial={false}>
+          {search && (
+            <motion.div
+              key="mobile-search"
+              initial={{ height: 0, opacity: 0 }}
+              animate={{ height: 'auto', opacity: 1 }}
+              exit={{ height: 0, opacity: 0 }}
+              transition={{ duration: 0.2 }}
+              className="overflow-hidden md:hidden"
+            >
+              <Suspense>
+                <SearchBox className="mx-4 mb-3" autoFocus />
+              </Suspense>
+            </motion.div>
+          )}
+        </AnimatePresence>
         <AnimatePresence>
           {menu && (
             <motion.nav

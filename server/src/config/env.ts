@@ -11,6 +11,8 @@ const schema = z.object({
   JWT_SECRET: z.string().min(32, 'JWT_SECRET must be at least 32 characters'),
   CLIENT_URL: z.string().url().default('http://localhost:3000'),
   GOOGLE_CLIENT_ID: z.string().optional().default(''),
+  // Claude AI search (optional). Without it, AI search uses the built-in smart ranking instead.
+  ANTHROPIC_API_KEY: z.string().optional().default(''),
   // Stripe (optional until you add keys). Test keys start with sk_test_ / whsec_.
   STRIPE_SECRET_KEY: z.string().optional().default(''),
   STRIPE_WEBHOOK_SECRET: z.string().optional().default(''),

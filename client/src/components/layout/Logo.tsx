@@ -19,8 +19,8 @@ export function Logo({ height = 52, showName = true }: { height?: number; showNa
       {showName && (
         <span
           aria-hidden
-          // a little smaller on phones so the header icons still fit
-          className="font-script text-[length:calc(var(--logo-name)*0.78)] leading-none whitespace-nowrap text-[#b8894a] sm:text-[length:var(--logo-name)] dark:text-[#d9ad6c]"
+          // hidden on phones (logo icon only), shown from tablet width up
+          className="hidden font-script text-[length:var(--logo-name)] leading-none whitespace-nowrap text-[#b8894a] sm:inline dark:text-[#d9ad6c]"
           style={{ ['--logo-name' as string]: `${Math.round(height * 0.62)}px` }}
         >
           ShopFussion

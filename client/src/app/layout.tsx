@@ -1,6 +1,7 @@
 import type { Metadata, Viewport } from 'next';
 import { Great_Vibes, Inter, Poiret_One } from 'next/font/google';
 import { Providers } from '@/components/providers/Providers';
+import { CookieConsent } from '@/components/layout/CookieConsent';
 import { JsonLd } from '@/components/seo/JsonLd';
 import { SITE } from '@/lib/config';
 import './globals.css';
@@ -88,7 +89,10 @@ export default function RootLayout({ children }: { children: React.ReactNode }) 
             ],
           }}
         />
-        <Providers>{children}</Providers>
+        <Providers>
+          {children}
+          <CookieConsent />
+        </Providers>
       </body>
     </html>
   );

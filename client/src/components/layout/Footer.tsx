@@ -1,7 +1,6 @@
 import Link from 'next/link';
 import { SITE } from '@/lib/config';
 import { Icon } from '@/components/ui/Icon';
-import { Logo } from './Logo';
 
 const COLS = [
   {
@@ -29,8 +28,7 @@ export function Footer() {
     <footer className="mt-24 border-t border-line bg-surface">
       <div className="container-page grid gap-10 py-14 sm:grid-cols-2 lg:grid-cols-[1.7fr_1fr_1fr_1.3fr]">
         <div>
-          <Logo height={64} />
-          <p className="mt-4 mb-5 max-w-sm text-[0.93rem] text-muted">
+          <p className="mb-5 max-w-sm text-[0.93rem] text-muted">
             Welcome to ShopFussion, your destination for the latest and smartest gadgets. From smartwatches to essential accessories, we
             bring you the best in innovation, all in one place.
           </p>

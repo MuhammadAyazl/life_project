@@ -302,6 +302,33 @@ describe('catalog', () => {
     await Product.deleteOne({ slug: 'demo-speaker' });
   });
 
+  it('AI search understands budget + "best" (smart mode without an API key)', async () => {
+    const real = await Product.findOne({ slug: 'test-earbuds' });
+    await Product.create([
+      { store: real!.store, name: 'Xiaomi Buds Lite', slug: 'xiaomi-buds-lite', description: 'Xiaomi bluetooth earbuds.', mrp: 40, price: 30, category: 'Earbuds', rating: 4.2, numReviews: 80 },
+      { store: real!.store, name: 'Xiaomi Buds Pro', slug: 'xiaomi-buds-pro', description: 'Xiaomi bluetooth earbuds with ANC.', mrp: 60, price: 45, category: 'Earbuds', rating: 4.8, numReviews: 150 },
+      { store: real!.store, name: 'Xiaomi Buds Max', slug: 'xiaomi-buds-max', description: 'Premium Xiaomi earbuds.', mrp: 120, price: 99, category: 'Earbuds', rating: 4.9, numReviews: 300 },
+    ]);
+    const r = await request(app)
+      .post('/api/products/ai-search')
+      .set('Origin', ORIGIN)
+      .send({ q: 'best xiaomi bluetooth earbuds under $50' });
+    assert.equal(r.status, 200, JSON.stringify(r.body));
+    const names = r.body.results.map((x: { product: { name: string } }) => x.product.name);
+    assert.equal(names[0], 'Xiaomi Buds Pro', 'best rated within budget comes first');
+    assert.ok(!names.includes('Xiaomi Buds Max'), 'over-budget product excluded');
+    assert.ok(r.body.results.every((x: { reason: string }) => x.reason.length > 0));
+
+    const cheap = await request(app).post('/api/products/ai-search').set('Origin', ORIGIN).send({ q: 'sasta xiaomi earbuds' });
+    assert.equal(cheap.body.results[0].product.name, 'Xiaomi Buds Lite');
+    await Product.deleteMany({ slug: /^xiaomi-buds/ });
+  });
+
+  it('AI search validates the query', async () => {
+    const r = await request(app).post('/api/products/ai-search').set('Origin', ORIGIN).send({ q: '' });
+    assert.equal(r.status, 400);
+  });
+
   it('returns 404 for unknown products and bad ids', async () => {
     assert.equal((await request(app).get('/api/products/does-not-exist')).status, 404);
     assert.equal((await request(app).get('/api/stores/nope')).status, 404);

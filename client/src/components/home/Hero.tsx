@@ -6,6 +6,7 @@ import Link from 'next/link';
 import { motion } from 'framer-motion';
 import { ButtonLink } from '@/components/ui/Button';
 import { Icon } from '@/components/ui/Icon';
+import { Tilt } from '@/components/motion/Tilt';
 
 // WebGL only runs in the browser; the hero text renders immediately without waiting for it.
 const HeroScene = dynamic(() => import('@/components/three/HeroScene'), { ssr: false });
@@ -24,9 +25,9 @@ export function Hero() {
           <motion.div initial={{ opacity: 0, y: -10 }} animate={{ opacity: 1, y: 0 }} transition={{ duration: 0.5, ease }}>
             <Link
               href="/shop"
-              className="group inline-flex items-center gap-2.5 rounded-full bg-white/90 py-1 pr-4 pl-1 text-sm font-medium text-[#1d5fd1] transition hover:bg-white hover:shadow-lg"
+              className="group inline-flex max-w-full items-center gap-1.5 rounded-full bg-white/90 py-1 pr-3 pl-1 text-[11px] font-medium whitespace-nowrap text-[#1d5fd1] transition hover:bg-white hover:shadow-lg sm:gap-2.5 sm:pr-4 sm:text-sm"
             >
-              <span className="rounded-full bg-brand px-3 py-0.5 text-xs text-brand-ink">NEWS</span>
+              <span className="shrink-0 rounded-full bg-brand px-2 py-0.5 text-[10px] text-brand-ink sm:px-3 sm:text-xs">NEWS</span>
               Free shipping on orders above $50
               <Icon name="arrow" size={14} className="transition group-hover:translate-x-1" />
             </Link>
@@ -43,8 +44,8 @@ export function Hero() {
           <motion.div initial={{ opacity: 0, y: 16 }} animate={{ opacity: 1, y: 0 }} transition={{ duration: 0.6, ease, delay: 0.25 }}>
             <p className="text-sm font-medium">Starts from</p>
             <p className="mb-6 font-display text-3xl font-bold">$4.90</p>
-            {/* lg size minus 4px on every side: 32px x 10px */}
-            <ButtonLink href="/shop" variant="inverse" size="lg" className="px-8! py-2.5!">
+            {/* desktop: 32x10px; phones 2px smaller: 30x8px */}
+            <ButtonLink href="/shop" variant="inverse" size="lg" className="px-[30px]! py-2! sm:px-8! sm:py-2.5!">
               SHOP NOW
             </ButtonLink>
           </motion.div>
@@ -97,19 +98,21 @@ export function Hero() {
             <Link href={c.href} className="relative z-10 mt-3 inline-flex items-center gap-1.5 font-medium hover:underline">
               View more <Icon name="arrow" size={16} />
             </Link>
-            {/* product photo floats gently on the right of the card */}
+            {/* product photo floats gently on the right of the card; on hover it zooms and tilts with the cursor */}
             <motion.div
-              className="pointer-events-none absolute top-1/2 right-[4%] aspect-square w-[44%] -translate-y-1/2"
+              className="absolute top-1/2 right-[4%] aspect-square w-[44%] -translate-y-1/2"
               animate={{ y: [0, -6, 0] }}
               transition={{ duration: 4 + i, repeat: Infinity, ease: 'easeInOut' }}
             >
-              <Image
-                src={c.img}
-                alt={c.alt}
-                fill
-                sizes="(max-width: 1024px) 40vw, 160px"
-                className="object-contain drop-shadow-[0_12px_18px_rgba(0,0,0,.28)]"
-              />
+              <Tilt className="relative size-full" max={18} scale={1.15}>
+                <Image
+                  src={c.img}
+                  alt={c.alt}
+                  fill
+                  sizes="(max-width: 1024px) 40vw, 160px"
+                  className="pointer-events-none object-contain drop-shadow-[0_12px_18px_rgba(0,0,0,.28)]"
+                />
+              </Tilt>
             </motion.div>
           </motion.div>
         ))}

@@ -2,7 +2,7 @@
 
 import Link from 'next/link';
 import { useRouter, useSearchParams } from 'next/navigation';
-import { useCallback, useState } from 'react';
+import { useCallback, useEffect, useState } from 'react';
 import { motion } from 'framer-motion';
 import { api, ApiError, errorMessage, fieldError } from '@/lib/api';
 import { safeNext } from '@/lib/format';
@@ -50,17 +50,60 @@ export function AuthForm({ mode }: { mode: 'login' | 'signup' }) {
   );
   const googleError = useCallback((m: string) => setErr(new ApiError(400, m)), []);
 
+  // Close (X button, Escape, or a click outside the card): go back to the page the visitor came from,
+  // never to /login or /signup again, and never to a private page that would bounce back here.
+  const close = useCallback(() => {
+    let to = '/';
+    try {
+      const ref = document.referrer ? new URL(document.referrer) : null;
+      if (ref && ref.origin === window.location.origin && !/^\/(login|signup)/.test(ref.pathname) && !params.get('next')) {
+        to = ref.pathname + ref.search;
+      }
+    } catch {
+      /* bad referrer - go home */
+    }
+    router.push(to);
+  }, [router, params]);
+
+  useEffect(() => {
+    const onKey = (e: KeyboardEvent) => e.key === 'Escape' && close();
+    document.addEventListener('keydown', onKey);
+    document.body.style.overflow = 'hidden';
+    return () => {
+      document.removeEventListener('keydown', onKey);
+      document.body.style.overflow = '';
+    };
+  }, [close]);
+
   const strength = passwordStrength(form.password);
   const general = err && !(err instanceof ApiError && err.details && Object.keys(err.details).length) ? errorMessage(err) : '';
 
   return (
+    // full-screen backdrop: clicking anywhere outside the card closes it
     <motion.div
+      initial={{ opacity: 0 }}
+      animate={{ opacity: 1 }}
+      className="fixed inset-0 z-[80] grid place-items-center overflow-y-auto bg-[#0a141e]/55 p-4 backdrop-blur-sm"
+      onMouseDown={(e) => e.target === e.currentTarget && close()}
+    >
+    <motion.div
+      role="dialog"
+      aria-modal="true"
+      aria-labelledby="auth-title"
       initial={{ opacity: 0, y: 24 }}
       animate={{ opacity: 1, y: 0 }}
       transition={{ duration: 0.5, ease: [0.22, 1, 0.36, 1] }}
-      className="mx-auto my-6 w-full max-w-md rounded-2xl border border-line bg-surface p-7 shadow-[0_24px_70px_-30px_rgba(10,26,64,.35)] sm:p-9"
+      className="relative my-6 w-full max-w-md rounded-2xl border border-line bg-surface p-7 shadow-[0_24px_70px_-30px_rgba(10,26,64,.35)] sm:p-9"
     >
-      <h1 className="text-center text-2xl font-bold">{isSignup ? 'Create your account' : 'Sign in to ShopFussion'}</h1>
+      <button
+        type="button"
+        onClick={close}
+        aria-label="Close"
+        className="absolute top-3 right-3 grid size-9 place-items-center rounded-lg text-muted transition hover:bg-chip hover:text-ink"
+      >
+        <Icon name="close" size={20} />
+      </button>
+      <h1 id="auth-title" className="text-center text-2xl font-bold">{isSignup ? 'Create your account' : 'Sign in to ShopFussion'}</h1>
       <p className="mt-1 mb-6 text-center text-sm text-muted">
         {isSignup ? 'Join free - and try Plus free for 7 days.' : 'Welcome back! Please sign in to continue.'}
       </p>
@@ -159,6 +202,7 @@ export function AuthForm({ mode }: { mode: 'login' | 'signup' }) {
           {isSignup ? 'Sign in' : 'Sign up'}
         </Link>
       </p>
+    </motion.div>
     </motion.div>
   );
 }

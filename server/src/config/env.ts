@@ -17,6 +17,8 @@ const schema = z.object({
   STRIPE_SECRET_KEY: z.string().optional().default(''),
   STRIPE_WEBHOOK_SECRET: z.string().optional().default(''),
   ADMIN_EMAIL: z.string().email().optional(),
+  // change to any new value (e.g. a date) to re-apply ADMIN_EMAIL/ADMIN_PASSWORD once on next start
+  ADMIN_RESET: z.string().optional(),
   ADMIN_PASSWORD: z.string().optional(),
 });
 

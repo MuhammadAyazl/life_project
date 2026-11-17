@@ -4,6 +4,7 @@
  * production database (bootstrapIfEmpty).
  */
 import bcrypt from 'bcryptjs';
+import mongoose from 'mongoose';
 import { env } from '../config/env.js';
 import { User } from '../models/User.js';
 import { Store } from '../models/Store.js';
@@ -117,5 +118,44 @@ export async function bootstrapIfEmpty() {
     return false;
   }
   await seedDatabase();
+  return true;
+}
+
+/**
+ * One-time admin reset, driven by env vars (used when the live admin is locked out or its login
+ * should change). When ADMIN_RESET is set to a new value, the next server start:
+ *   - makes the account with ADMIN_EMAIL the admin (the existing admin's email is changed to it,
+ *     or an existing account with that email is promoted),
+ *   - sets its password to ADMIN_PASSWORD, clears any lockout and signs out its old sessions.
+ * The applied value is remembered in the database, so it runs once per new ADMIN_RESET value.
+ */
+export async function applyAdminResetIfRequested() {
+  const version = env.ADMIN_RESET?.trim();
+  if (!version || !env.ADMIN_EMAIL || !env.ADMIN_PASSWORD || env.ADMIN_PASSWORD.length < 10) return false;
+
+  const settings = mongoose.connection.collection<{ _id: string; version: string }>('settings');
+  if ((await settings.findOne({ _id: 'adminReset' }))?.version === version) return false;
+
+  const email = env.ADMIN_EMAIL.toLowerCase();
+  const hash = await bcrypt.hash(env.ADMIN_PASSWORD, 12);
+  const unlock = { password: hash, failedLogins: 0, lockUntil: null, role: 'admin' as const };
+
+  const owner = await User.findOne({ email });
+  if (owner) {
+    owner.set(unlock);
+    owner.tokenVersion += 1;
+    await owner.save();
+  } else {
+    const admin = await User.findOne({ role: 'admin' }).sort({ createdAt: 1 });
+    if (admin) {
+      admin.set({ ...unlock, email });
+      admin.tokenVersion += 1;
+      await admin.save();
+    } else {
+      await User.create({ ...unlock, email, firstName: 'Admin' });
+    }
+  }
+  await settings.updateOne({ _id: 'adminReset' }, { $set: { version } }, { upsert: true });
+  console.log(`Admin reset applied for ${email}.`);
   return true;
 }

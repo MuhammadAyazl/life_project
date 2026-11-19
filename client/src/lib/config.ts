@@ -8,6 +8,7 @@ export const SITE = {
   phone: '+971 54 383 5133',
   whatsapp: '+971 54 383 5133',
   whatsappLink: 'https://wa.me/971543835133',
+  github: 'https://github.com/MuhammadAyazl/life_project',
   logo: '/images/logo1.png',
   ogImage: '/images/RGB_Gamer_Girl_Portrait.png',
   keywords: [

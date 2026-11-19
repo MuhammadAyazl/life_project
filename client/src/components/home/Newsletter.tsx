@@ -37,7 +37,7 @@ export function Newsletter() {
         aria-label="Email for newsletter"
         className="field flex-1 rounded-full px-5 py-3.5"
       />
-      <Button type="submit" loading={busy} className="rounded-full px-[21px]! py-[9px]!">
+      <Button type="submit" loading={busy} className="rounded-full px-[21px]! py-[7px]!">
         Subscribe
       </Button>
     </form>

@@ -3,7 +3,8 @@ import { AUTH_COOKIE, type Role } from '../config/constants.js';
 import { User, type UserDoc } from '../models/User.js';
 import { Store } from '../models/Store.js';
 import { forbidden, unauthorized } from '../utils/AppError.js';
-import { setAuthCookie, shouldRenew, signToken, verifyToken } from '../utils/token.js';
+import { shouldRenew, verifyToken } from '../utils/token.js';
+import { renewSession, sessionIsActive } from '../services/session.js';
 
 function readToken(req: Request): string | null {
   const cookie = req.cookies?.[AUTH_COOKIE];
@@ -19,10 +20,11 @@ async function loadUser(req: Request, res: Response): Promise<UserDoc | null> {
   if (!payload) return null;
   const user = (await User.findById(payload.sub)) as UserDoc | null;
   if (!user || user.tokenVersion !== payload.v) return null;
+  // signed out / revoked on the server -> the token is dead even if the cookie was copied
+  if (!(await sessionIsActive(payload.s, user._id))) return null;
+  req.sessionId = payload.s;
   // keep active users signed in: re-issue the cookie once it is a day old
-  if (shouldRenew(payload) && !res.headersSent) {
-    setAuthCookie(res, signToken(String(user._id), user.tokenVersion, payload.r), payload.r);
-  }
+  if (shouldRenew(payload) && !res.headersSent) await renewSession(res, user, payload.s, payload.r);
   return user;
 }
 

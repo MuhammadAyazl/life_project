@@ -5,7 +5,7 @@ import { PLAN } from '../config/constants.js';
 import { env } from '../config/env.js';
 import { addDays, effectivePlan } from '../services/plan.js';
 import { publicUser } from '../services/serialize.js';
-import { PRICES, paymentsEnabled, stripe, syncSubscription } from '../services/stripe.js';
+import { PRICES, ensureCustomer, isMissing, paymentsEnabled, stripe, syncSubscription } from '../services/stripe.js';
 import { badRequest, forbidden } from '../utils/AppError.js';
 import { parse } from '../utils/validate.js';
 
@@ -47,13 +47,7 @@ router.post('/checkout', requireAuth, async (req, res) => {
   if (effectivePlan(user).tier === 'plus') throw badRequest('You are already a Plus member.');
 
   const s = stripe();
-  let customerId = user.plan!.stripeCustomerId;
-  if (!customerId) {
-    const customer = await s.customers.create({ email: user.email, name: user.name, metadata: { userId: String(user._id) } });
-    customerId = customer.id;
-    user.plan!.stripeCustomerId = customerId;
-    await user.save();
-  }
+  const customerId = await ensureCustomer(user);
 
   const price = PRICES[billing];
   const site = env.allowedOrigins[0];
@@ -101,9 +95,15 @@ router.post('/cancel', requireAuth, async (req, res) => {
   const user = req.user!;
   const subId = user.plan!.stripeSubscriptionId;
   if (subId && paymentsEnabled()) {
-    const sub = await stripe().subscriptions.update(subId, { cancel_at_period_end: true });
-    const fresh = (await syncSubscription(sub)) ?? user;
-    return res.json({ user: publicUser(fresh), message: 'Auto-renew is off. Plus stays active until the end of your billing period.' });
+    try {
+      const sub = await stripe().subscriptions.update(subId, { cancel_at_period_end: true });
+      const fresh = (await syncSubscription(sub)) ?? user;
+      return res.json({ user: publicUser(fresh), message: 'Auto-renew is off. Plus stays active until the end of your billing period.' });
+    } catch (err) {
+      // subscription from the other Stripe mode (live vs test): nothing to cancel there, just end it here
+      if (!isMissing(err)) throw err;
+      user.plan!.stripeSubscriptionId = null;
+    }
   }
   user.plan!.tier = 'free';
   user.plan!.billing = null;
@@ -114,8 +114,8 @@ router.post('/cancel', requireAuth, async (req, res) => {
 
 /** Stripe-hosted page to update card, see invoices or cancel. */
 router.post('/portal', requireAuth, async (req, res) => {
-  const customer = req.user!.plan!.stripeCustomerId;
-  if (!customer) throw badRequest('No billing account yet.');
+  if (!req.user!.plan!.stripeCustomerId) throw badRequest('No billing account yet.');
+  const customer = await ensureCustomer(req.user!);
   const portal = await stripe().billingPortal.sessions.create({ customer, return_url: `${env.allowedOrigins[0]}/plus` });
   res.json({ url: portal.url });
 });

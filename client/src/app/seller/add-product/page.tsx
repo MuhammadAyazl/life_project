@@ -1,7 +1,7 @@
 'use client';
 
 import { useEffect, useRef, useState } from 'react';
-import { api, errorMessage, fieldError } from '@/lib/api';
+import { api, errorMessage, fieldError, refreshStorefront } from '@/lib/api';
 import { CATEGORIES } from '@/lib/config';
 import { useToast } from '@/components/providers/ToastProvider';
 import { Button } from '@/components/ui/Button';
@@ -59,6 +59,7 @@ export default function AddProductPage() {
           setBusy(true);
           try {
             await api('/seller/products', { method: 'POST', body: fd });
+            refreshStorefront(); // shoppers see the new product immediately
             toast('Product added');
             setF(EMPTY);
             setFiles([null, null, null, null]);
@@ -97,7 +98,17 @@ export default function AddProductPage() {
         <TextArea label="Description" value={f.description} onChange={set('description')} placeholder="Enter product description" error={fieldError(err, 'description')} maxLength={3000} />
         <div className="grid gap-5 sm:grid-cols-2">
           <Field label="Actual price ($)" type="number" min="0" step="any" value={f.mrp} onChange={set('mrp')} error={fieldError(err, 'mrp')} />
-          <Field label="Offer price ($)" type="number" min="0" step="any" value={f.price} onChange={set('price')} error={fieldError(err, 'price')} />
+          <Field
+            label="Offer price ($)"
+            hint="Optional"
+            type="number"
+            min="0"
+            step="any"
+            value={f.price}
+            onChange={set('price')}
+            placeholder="Leave empty for no discount"
+            error={fieldError(err, 'price')}
+          />
         </div>
         <Select label="Category" value={f.category} onChange={set('category')} error={fieldError(err, 'category')}>
           <option value="">Select a category</option>

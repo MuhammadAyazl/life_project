@@ -11,6 +11,7 @@ import { useToast } from '@/components/providers/ToastProvider';
 import { useRequireAuth } from '@/components/account/useRequireAuth';
 import { AddressForm } from '@/components/account/AddressForm';
 import { AvatarPicker } from '@/components/account/AvatarPicker';
+import { TwoFactorCard } from '@/components/account/TwoFactorCard';
 import { Button, ButtonLink } from '@/components/ui/Button';
 import { Field } from '@/components/ui/Field';
 import { Icon } from '@/components/ui/Icon';
@@ -182,6 +183,10 @@ export function AccountView() {
               </Button>
             </div>
           </form>
+        </Card>
+
+        <Card title="Two-factor sign-in">
+          <TwoFactorCard />
         </Card>
       </div>
 

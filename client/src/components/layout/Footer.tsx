@@ -43,6 +43,16 @@ export function Footer() {
                 {s === 'LinkedIn' ? 'in' : s[0]}
               </a>
             ))}
+            {/* GitHub: the project's source code */}
+            <a
+              href={SITE.github}
+              target="_blank"
+              rel="noopener noreferrer"
+              aria-label="ShopFussion on GitHub"
+              className="grid size-9 place-items-center rounded-full border border-line text-ink transition hover:border-ink hover:bg-ink hover:text-bg"
+            >
+              <Icon name="github" size={17} strokeWidth={0} className="fill-current" />
+            </a>
             {/* WhatsApp: opens a chat with the shop number */}
             <a
               href={SITE.whatsappLink}

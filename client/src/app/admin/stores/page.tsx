@@ -1,7 +1,7 @@
 'use client';
 
 import { useEffect, useState } from 'react';
-import { api, errorMessage } from '@/lib/api';
+import { api, errorMessage, refreshStorefront } from '@/lib/api';
 import { useToast } from '@/components/providers/ToastProvider';
 import { Toggle } from '@/components/dashboard/DashboardShell';
 import { StoreCard, type AdminStore } from '@/components/dashboard/StoreCard';
@@ -42,6 +42,7 @@ export default function AdminStoresPage() {
                     setList((l) => l!.map((x) => (x.id === s.id ? { ...x, isActive: v } : x)));
                     try {
                       await api(`/admin/stores/${s.id}`, { method: 'PATCH', body: { isActive: v } });
+      refreshStorefront();
                       toast(v ? 'Store activated' : 'Store deactivated - its products are hidden');
                     } catch (e) {
                       setList((l) => l!.map((x) => (x.id === s.id ? { ...x, isActive: !v } : x)));

@@ -6,8 +6,10 @@ import { User } from '../models/User.js';
 import { Product } from '../models/Product.js';
 import { Order } from '../models/Order.js';
 import { Coupon } from '../models/Coupon.js';
+import { AuditLog } from '../models/AuditLog.js';
 import { badRequest, notFound } from '../utils/AppError.js';
 import { objectId, round2 } from '../utils/helpers.js';
+import { audit } from '../services/audit.js';
 import { parse } from '../utils/validate.js';
 
 const router = Router();
@@ -21,11 +23,11 @@ router.get('/dashboard', async (_req, res) => {
     Store.countDocuments({ status: 'approved' }),
     User.countDocuments(),
     Order.aggregate<{ total: number; count: number }>([
-      { $match: { status: { $ne: 'CANCELLED' } } },
+      { $match: { status: { $nin: ['CANCELLED', 'PENDING_PAYMENT'] } } },
       { $group: { _id: null, total: { $sum: '$total' }, count: { $sum: 1 } } },
     ]),
     Order.aggregate<{ _id: string; orders: number }>([
-      { $match: { createdAt: { $gte: since } } },
+      { $match: { createdAt: { $gte: since }, status: { $ne: 'PENDING_PAYMENT' } } },
       { $group: { _id: { $dateToString: { format: '%Y-%m-%d', date: '$createdAt' } }, orders: { $sum: 1 } } },
       { $sort: { _id: 1 } },
     ]),
@@ -70,6 +72,7 @@ router.patch('/stores/:id', async (req, res) => {
   const { isActive } = parse(z.object({ isActive: z.boolean() }), req.body);
   const store = await Store.findByIdAndUpdate(objectId(req.params.id, 'Store'), { isActive }, { new: true });
   if (!store) throw notFound('Store not found.');
+  audit(req, isActive ? 'admin.store.activate' : 'admin.store.deactivate', { targetId: store._id, meta: { store: store.name } });
   res.json({ ok: true, isActive: store.isActive });
 });
 
@@ -79,6 +82,7 @@ router.post('/stores/:id/:decision', async (req, res) => {
   if (!store) throw notFound('Store not found.');
   if (store.status !== 'pending') throw badRequest('This application was already reviewed.');
   store.status = decision === 'approve' ? 'approved' : 'rejected';
+  audit(req, `admin.store.${decision}`, { targetId: store._id, meta: { store: store.name } });
   await store.save();
   if (decision === 'approve') {
     // never downgrade an admin
@@ -108,13 +112,31 @@ router.get('/coupons', async (_req, res) => {
 router.post('/coupons', async (req, res) => {
   const data = parse(couponSchema, req.body);
   const c = await Coupon.create(data);
+  audit(req, 'admin.coupon.create', { targetId: c._id, meta: { code: c.code, discount: c.discount } });
   res.status(201).json({ coupon: { id: String(c._id), ...c.toObject() } });
 });
 
 router.delete('/coupons/:id', async (req, res) => {
   const r = await Coupon.deleteOne({ _id: objectId(req.params.id, 'Coupon') });
+  if (r.deletedCount) audit(req, 'admin.coupon.delete', { targetId: String(req.params.id) });
   if (!r.deletedCount) throw notFound('Coupon not found.');
   res.json({ ok: true });
+});
+
+/** Security / activity trail for admins. Optional ?type=auth|admin|seller filter. */
+router.get('/audit', async (req, res) => {
+  const q = parse(
+    z.object({
+      type: z.enum(['auth', 'admin', 'seller']).optional(),
+      limit: z.coerce.number().int().min(1).max(200).optional().default(100),
+    }),
+    req.query,
+  );
+  const logs = await AuditLog.find(q.type ? { action: new RegExp(`^${q.type}\\.`) } : {})
+    .sort({ createdAt: -1 })
+    .limit(q.limit)
+    .lean();
+  res.json({ logs: logs.map(({ _id, ...l }) => ({ id: String(_id), ...l })) });
 });
 
 export default router;

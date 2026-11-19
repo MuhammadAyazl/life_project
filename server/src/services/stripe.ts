@@ -76,3 +76,30 @@ export async function syncSubscription(sub: Stripe.Subscription): Promise<UserDo
   await user.save();
   return user;
 }
+
+/** True when Stripe says the object doesn't exist for this key (e.g. an ID saved from live mode while using a test key). */
+export const isMissing = (err: unknown) =>
+  !!err && typeof err === 'object' && (err as { code?: string }).code === 'resource_missing';
+
+/**
+ * Returns a Stripe customer ID that exists for the CURRENT key.
+ * A saved ID from the other mode (live vs test) or a deleted customer is replaced with a fresh one.
+ */
+export async function ensureCustomer(user: UserDoc): Promise<string> {
+  const s = stripe();
+  const saved = user.plan!.stripeCustomerId;
+  if (saved) {
+    try {
+      const c = await s.customers.retrieve(saved);
+      if (!('deleted' in c && c.deleted)) return saved;
+    } catch (err) {
+      if (!isMissing(err)) throw err;
+    }
+    // stale ID: the subscription saved with it can't be managed with this key either
+    user.plan!.stripeSubscriptionId = null;
+  }
+  const customer = await s.customers.create({ email: user.email, name: user.name, metadata: { userId: String(user._id) } });
+  user.plan!.stripeCustomerId = customer.id;
+  await user.save();
+  return customer.id;
+}

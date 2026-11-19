@@ -9,6 +9,10 @@ import { objectId, round2 } from '../utils/helpers.js';
 import { parse } from '../utils/validate.js';
 import { resolveCoupon } from '../services/coupon.js';
 import { shopperFilter } from '../services/catalog.js';
+import { paymentsEnabled, stripe } from '../services/stripe.js';
+import { cancelUnpaidOrders, createOrderCheckout, markOrdersPaid } from '../services/orderPayments.js';
+import { audit } from '../services/audit.js';
+import { AppError } from '../utils/AppError.js';
 
 const router = Router();
 router.use(requireAuth);
@@ -27,7 +31,7 @@ const createSchema = z.object({
     .max(50),
   addressId: z.string().regex(/^[a-f0-9]{24}$/i, 'Please select a delivery address.'),
   couponCode: z.string().trim().max(20).optional(),
-  paymentMethod: z.literal('COD').default('COD'),
+  paymentMethod: z.enum(['COD', 'CARD']).default('COD'),
 });
 
 router.post('/coupon/validate', async (req, res) => {
@@ -59,6 +63,9 @@ router.post('/', async (req, res) => {
   const outOfStock = products.filter((p) => !p.inStock);
   if (outOfStock.length) throw badRequest(`Out of stock: ${outOfStock.map((p) => p.name).join(', ')}`);
 
+  const isCard = data.paymentMethod === 'CARD';
+  if (isCard && !paymentsEnabled()) throw new AppError(503, 'Card payments are not available right now. Please choose Cash on Delivery.');
+
   const coupon = data.couponCode ? await resolveCoupon(data.couponCode, user) : null;
 
   const byStore = new Map<string, typeof products>();
@@ -88,11 +95,26 @@ router.post('/', async (req, res) => {
       discount,
       total: round2(subtotal - discount),
       coupon: coupon ? { code: coupon.code, discount: coupon.discount } : { code: null, discount: 0 },
-      paymentMethod: 'COD' as const,
+      paymentMethod: data.paymentMethod,
+      // card orders wait for Stripe to confirm the payment before they become real orders
+      status: isCard ? ('PENDING_PAYMENT' as const) : ('ORDER_PLACED' as const),
     };
   });
 
   const orders = await Order.insertMany(docs);
+
+  if (isCard) {
+    // sales are counted only after the payment succeeds (see markOrdersPaid)
+    try {
+      const withStores = await Order.find({ _id: { $in: orders.map((o) => o._id) } }).populate<{ store: { name?: string } }>('store', 'name');
+      const checkoutUrl = await createOrderCheckout(String(user._id), user.email, withStores);
+      return res.status(201).json({ checkoutUrl, orders: orders.map((o) => ({ id: String(o._id), total: o.total })) });
+    } catch (err) {
+      await Order.updateMany({ _id: { $in: orders.map((o) => o._id) } }, { status: 'CANCELLED' });
+      throw err;
+    }
+  }
+
   await Product.bulkWrite(
     products.map((p) => ({
       updateOne: { filter: { _id: p._id }, update: { $inc: { sold: qtyById.get(String(p._id))! } } },
@@ -100,6 +122,28 @@ router.post('/', async (req, res) => {
   );
   res.status(201).json({
     orders: orders.map((o) => ({ id: String(o._id), total: o.total })),
+    total: round2(orders.reduce((s, o) => s + o.total, 0)),
+  });
+});
+
+/**
+ * Success page: asks Stripe directly whether the payment went through (the webhook does the same,
+ * whichever comes first wins - marking orders paid is idempotent).
+ */
+router.post('/checkout/confirm', async (req, res) => {
+  const { sessionId } = parse(z.object({ sessionId: z.string().regex(/^cs_[A-Za-z0-9_]{10,200}$/, 'Invalid payment session.') }), req.body);
+  const session = await stripe()
+    .checkout.sessions.retrieve(sessionId)
+    .catch(() => null); // unknown / made-up session id
+  if (!session || session.client_reference_id !== String(req.user!._id)) throw notFound('Payment not found.');
+  if (session.mode === 'payment' && session.payment_status === 'paid') {
+    const n = await markOrdersPaid(session);
+    if (n) audit(req, 'order.paid', { meta: { sessionId, orders: n } });
+  }
+  const orders = await Order.find({ stripeSessionId: session.id, user: req.user!._id }).select('_id total status isPaid').lean();
+  res.json({
+    paid: session.payment_status === 'paid',
+    orders: orders.map((o) => ({ id: String(o._id), total: o.total, status: o.status, isPaid: o.isPaid })),
     total: round2(orders.reduce((s, o) => s + o.total, 0)),
   });
 });
@@ -125,12 +169,43 @@ router.get('/:id', async (req, res) => {
 
 /** Customers can cancel an order until it ships. */
 router.post('/:id/cancel', async (req, res) => {
-  const order = await Order.findOne({ _id: objectId(req.params.id, 'Order'), user: req.user!._id });
+  let order = await Order.findOne({ _id: objectId(req.params.id, 'Order'), user: req.user!._id });
   if (!order) throw notFound('Order not found.');
-  if (!['ORDER_PLACED', 'PROCESSING'].includes(order.status)) throw badRequest('This order can no longer be cancelled.');
+  if (!['PENDING_PAYMENT', 'ORDER_PLACED', 'PROCESSING'].includes(order.status)) throw badRequest('This order can no longer be cancelled.');
+
+  // unpaid card order: close the Stripe payment page so it can't be paid afterwards
+  if (order.status === 'PENDING_PAYMENT' && order.stripeSessionId) {
+    const session = await stripe().checkout.sessions.retrieve(order.stripeSessionId);
+    if (session.status === 'open') await stripe().checkout.sessions.expire(session.id);
+    if (session.payment_status === 'paid') {
+      // paid a moment ago: record the payment first, then refund it below
+      await markOrdersPaid(session);
+      const fresh = await Order.findById(order._id);
+      if (!fresh) throw notFound('Order not found.');
+      order = fresh;
+    } else {
+      await cancelUnpaidOrders(order.stripeSessionId);
+      return res.json({ ok: true, refunded: false });
+    }
+  }
+
+  // paid card order: refund this order's amount back to the card automatically
+  let refunded = false;
+  if (order.paymentMethod === 'CARD' && order.isPaid && order.stripeSessionId) {
+    const session = await stripe().checkout.sessions.retrieve(order.stripeSessionId);
+    const pi = typeof session.payment_intent === 'string' ? session.payment_intent : session.payment_intent?.id;
+    if (!pi) throw badRequest('Could not find the payment for this order. Please contact support.');
+    await stripe().refunds.create(
+      { payment_intent: pi, amount: Math.round(order.total * 100), metadata: { orderId: String(order._id) } },
+      { idempotencyKey: `refund-${order._id}` },
+    );
+    order.isPaid = false;
+    refunded = true;
+    audit(req, 'order.refund', { targetId: order._id, meta: { amount: order.total } });
+  }
   order.status = 'CANCELLED';
   await order.save();
-  res.json({ ok: true });
+  res.json({ ok: true, refunded });
 });
 
 export default router;

@@ -5,6 +5,7 @@
  */
 import bcrypt from 'bcryptjs';
 import mongoose from 'mongoose';
+import { unlockAccount } from './loginGuard.js';
 import { env } from '../config/env.js';
 import { User } from '../models/User.js';
 import { Store } from '../models/Store.js';
@@ -138,7 +139,14 @@ export async function applyAdminResetIfRequested() {
 
   const email = env.ADMIN_EMAIL.toLowerCase();
   const hash = await bcrypt.hash(env.ADMIN_PASSWORD, 12);
-  const unlock = { password: hash, failedLogins: 0, lockUntil: null, role: 'admin' as const };
+  const unlock = {
+    password: hash,
+    failedLogins: 0,
+    lockUntil: null,
+    role: 'admin' as const,
+    // lost phone? the reset also turns 2FA off so the owner can get back in
+    twoFactor: { enabled: false, secretEnc: null, pendingSecretEnc: null, recoveryHashes: [], lastStep: 0 },
+  };
 
   const owner = await User.findOne({ email });
   if (owner) {
@@ -155,6 +163,7 @@ export async function applyAdminResetIfRequested() {
       await User.create({ ...unlock, email, firstName: 'Admin' });
     }
   }
+  await unlockAccount(email);
   await settings.updateOne({ _id: 'adminReset' }, { $set: { version } }, { upsert: true });
   console.log(`Admin reset applied for ${email}.`);
   return true;

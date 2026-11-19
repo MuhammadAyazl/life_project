@@ -2,7 +2,7 @@
 
 import Link from 'next/link';
 import { useEffect, useState } from 'react';
-import { api, errorMessage } from '@/lib/api';
+import { api, errorMessage, refreshStorefront } from '@/lib/api';
 import { money } from '@/lib/format';
 import type { Product } from '@/lib/types';
 import { useToast } from '@/components/providers/ToastProvider';
@@ -30,6 +30,7 @@ export default function ManageProductsPage() {
     setList((l) => l!.map((p) => (p.id === id ? { ...p, ...body } : p))); // optimistic
     try {
       await api(`/seller/products/${id}`, { method: 'PATCH', body });
+      refreshStorefront();
       toast(body.inStock ? 'Marked in stock' : 'Marked out of stock');
     } catch (e) {
       setList(prev);
@@ -41,6 +42,7 @@ export default function ManageProductsPage() {
     if (!confirm(`Delete "${p.name}"? This cannot be undone.`)) return;
     try {
       await api(`/seller/products/${p.id}`, { method: 'DELETE' });
+      refreshStorefront();
       setList((l) => l!.filter((x) => x.id !== p.id));
       toast('Product deleted');
     } catch (e) {

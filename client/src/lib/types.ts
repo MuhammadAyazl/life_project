@@ -35,6 +35,7 @@ export interface User {
   plan: Plan;
   addresses: Address[];
   hasGoogle: boolean;
+  twoFactorEnabled?: boolean;
 }
 
 export interface StoreRef {
@@ -70,7 +71,7 @@ export interface Review {
   createdAt: string;
 }
 
-export type OrderStatus = 'ORDER_PLACED' | 'PROCESSING' | 'SHIPPED' | 'DELIVERED' | 'CANCELLED';
+export type OrderStatus = 'PENDING_PAYMENT' | 'ORDER_PLACED' | 'PROCESSING' | 'SHIPPED' | 'DELIVERED' | 'CANCELLED';
 
 export interface OrderItem {
   product: string;
@@ -91,7 +92,7 @@ export interface Order {
   discount: number;
   total: number;
   coupon: { code: string | null; discount: number };
-  paymentMethod: 'COD';
+  paymentMethod: 'COD' | 'CARD';
   isPaid: boolean;
   status: OrderStatus;
   createdAt: string;

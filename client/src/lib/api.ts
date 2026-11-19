@@ -52,3 +52,11 @@ export function fieldError(err: unknown, field: string): string | undefined {
 export function errorMessage(err: unknown): string {
   return err instanceof Error ? err.message : 'Something went wrong.';
 }
+
+/**
+ * Ask the website to refresh its cached shop pages right away (after a seller adds, edits or
+ * deletes a product). Fire-and-forget: if it fails, pages still refresh within a few seconds.
+ */
+export function refreshStorefront() {
+  api('/revalidate', { method: 'POST' }).catch(() => {});
+}

@@ -19,7 +19,8 @@ export function dateTime(d: string | Date) {
   return new Date(d).toLocaleString('en-US', { dateStyle: 'medium', timeStyle: 'short' });
 }
 
-export const statusLabel = (s: string) => s.replace(/_/g, ' ').toLowerCase().replace(/^\w/, (c) => c.toUpperCase());
+export const statusLabel = (s: string) =>
+  s === 'PENDING_PAYMENT' ? 'Awaiting payment' : s.replace(/_/g, ' ').toLowerCase().replace(/^\w/, (c) => c.toUpperCase());
 
 /** Only allow same-site relative redirects (prevents open-redirect via ?next=). */
 export function safeNext(next: string | null | undefined, fallback = '/') {

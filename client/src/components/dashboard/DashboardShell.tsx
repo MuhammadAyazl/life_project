@@ -2,7 +2,8 @@
 
 import Link from 'next/link';
 import { usePathname } from 'next/navigation';
-import { motion } from 'framer-motion';
+import { useEffect, useRef, useState } from 'react';
+import { AnimatePresence, motion } from 'framer-motion';
 import { Logo } from '@/components/layout/Logo';
 import { Icon, type IconName } from '@/components/ui/Icon';
 import { Avatar } from '@/components/ui/Avatar';
@@ -14,7 +15,15 @@ export interface NavItem {
   icon: IconName;
 }
 
-/** Shared layout for the seller and admin areas: top bar + sidebar (tabs on mobile). */
+const KEY = 'sf_dash_expanded';
+
+/**
+ * Shared layout for the seller and admin areas.
+ * Sidebar on the left that collapses to an icon rail (toggle with the ☰ button):
+ * - desktop: expanded by default, the choice is remembered; content shifts with it
+ * - phone: an icon rail by default; ☰ slides the full menu out from the left OVER the page
+ *   (about 240px, never full screen) - tap outside, Esc or a menu link closes it
+ */
 export function DashboardShell({
   nav,
   badge,
@@ -30,11 +39,69 @@ export function DashboardShell({
 }) {
   const pathname = usePathname();
   const isOn = (href: string) => (href.split('/').length === 2 ? pathname === href : pathname.startsWith(href));
+  const [expanded, setExpanded] = useState(false);
+  const [mobile, setMobile] = useState(true);
+
+  // pick the starting state once we know the screen size
+  useEffect(() => {
+    const mq = window.matchMedia('(min-width: 768px)');
+    const apply = () => {
+      setMobile(!mq.matches);
+      let saved: string | null = null;
+      try {
+        saved = localStorage.getItem(KEY);
+      } catch {
+        /* storage blocked */
+      }
+      setExpanded(mq.matches ? saved !== '0' : false);
+    };
+    apply();
+    mq.addEventListener('change', apply);
+    return () => mq.removeEventListener('change', apply);
+  }, []);
+
+  // on phones the overlay closes when another page is chosen (not on first load) or Esc is pressed
+  const lastPath = useRef(pathname);
+  useEffect(() => {
+    if (pathname === lastPath.current) return;
+    lastPath.current = pathname;
+    if (mobile) setExpanded(false);
+  }, [pathname, mobile]);
+  useEffect(() => {
+    if (!(mobile && expanded)) return;
+    const onKey = (e: KeyboardEvent) => e.key === 'Escape' && setExpanded(false);
+    document.addEventListener('keydown', onKey);
+    return () => document.removeEventListener('keydown', onKey);
+  }, [mobile, expanded]);
+
+  const toggle = () => {
+    setExpanded((v) => {
+      if (!mobile) {
+        try {
+          localStorage.setItem(KEY, v ? '0' : '1');
+        } catch {
+          /* ignore */
+        }
+      }
+      return !v;
+    });
+  };
 
   return (
     <div className="min-h-dvh">
-      <header className="sticky top-0 z-40 flex items-center justify-between border-b border-line bg-surface/90 px-4 py-2 backdrop-blur-xl sm:px-8">
-        <Logo height={46} />
+      <header className="sticky top-0 z-40 flex h-16 items-center justify-between gap-3 border-b border-line bg-surface/90 px-3 backdrop-blur-xl sm:px-6">
+        <div className="flex items-center gap-2">
+          <button
+            onClick={toggle}
+            aria-label={expanded ? 'Collapse menu' : 'Open menu'}
+            aria-expanded={expanded}
+            aria-controls="dash-sidebar"
+            className="grid size-10 place-items-center rounded-lg text-muted transition hover:bg-chip hover:text-ink"
+          >
+            <Icon name={mobile && expanded ? 'close' : 'menu'} size={22} />
+          </button>
+          <Logo height={40} />
+        </div>
         <div className="flex items-center gap-3 font-medium">
           <Link href="/" className="hidden text-sm text-muted hover:text-ink sm:block">
             ← Back to shop
@@ -45,34 +112,76 @@ export function DashboardShell({
           </Link>
         </div>
       </header>
-      <div className="grid min-h-[calc(100dvh-63px)] md:grid-cols-[250px_minmax(0,1fr)]">
-        <aside className="border-b border-line bg-surface md:border-r md:border-b-0 md:py-7">
-          <div className="hidden px-5 pb-6 text-center md:block">{badge}</div>
-          <nav className="flex overflow-x-auto md:grid" aria-label="Dashboard">
-            {nav.map((n) => {
-              const on = isOn(n.href);
-              return (
-                <Link
-                  key={n.href}
-                  href={n.href}
-                  aria-current={on ? 'page' : undefined}
-                  className={cn(
-                    'relative flex shrink-0 items-center gap-3.5 px-5 py-3.5 font-medium whitespace-nowrap transition md:px-7',
-                    on ? 'bg-chip text-ink' : 'text-muted hover:bg-chip hover:text-ink',
-                  )}
-                >
-                  <Icon name={n.icon} />
-                  {n.label}
-                  {on && <motion.span layoutId="dash-active" className="absolute inset-x-0 bottom-0 h-[3px] bg-star md:inset-x-auto md:inset-y-0 md:right-0 md:h-auto md:w-1" />}
-                </Link>
-              );
-            })}
-          </nav>
-        </aside>
-        <main id="main" className="min-w-0 px-4 py-8 sm:px-10">
-          {children}
-        </main>
-      </div>
+
+      {/* phone: dim the page while the menu is slid out; tapping it closes the menu */}
+      <AnimatePresence>
+        {mobile && expanded && (
+          <motion.div
+            key="dash-backdrop"
+            initial={{ opacity: 0 }}
+            animate={{ opacity: 1 }}
+            exit={{ opacity: 0 }}
+            onClick={() => setExpanded(false)}
+            className="fixed inset-0 top-16 z-20 bg-[#0a141e]/45 backdrop-blur-[2px] md:hidden"
+            aria-hidden
+          />
+        )}
+      </AnimatePresence>
+
+      <aside
+        id="dash-sidebar"
+        className={cn(
+          'fixed top-16 bottom-0 left-0 z-30 flex flex-col overflow-x-hidden overflow-y-auto border-r border-line bg-surface py-4 transition-[width,box-shadow] duration-300 ease-out',
+          expanded ? 'w-60' : 'w-16',
+          mobile && expanded && 'shadow-2xl',
+        )}
+      >
+        <div
+          className={cn(
+            'overflow-hidden px-4 text-center transition-all duration-300',
+            expanded ? 'max-h-48 pt-2 pb-5 opacity-100' : 'max-h-0 opacity-0',
+          )}
+        >
+          {badge}
+        </div>
+        <nav className="grid gap-1 px-2" aria-label="Dashboard">
+          {nav.map((n) => {
+            const on = isOn(n.href);
+            return (
+              <Link
+                key={n.href}
+                href={n.href}
+                title={expanded ? undefined : n.label}
+                aria-current={on ? 'page' : undefined}
+                className={cn(
+                  'relative flex h-11 items-center gap-3.5 rounded-lg px-3 font-medium whitespace-nowrap transition',
+                  on ? 'bg-chip text-ink' : 'text-muted hover:bg-chip hover:text-ink',
+                )}
+              >
+                <Icon name={n.icon} className="shrink-0" />
+                <span className={cn('transition-opacity duration-200', expanded ? 'opacity-100' : 'pointer-events-none opacity-0')}>{n.label}</span>
+                {on && <motion.span layoutId="dash-active" className="absolute inset-y-1.5 left-0 w-1 rounded-full bg-star" />}
+              </Link>
+            );
+          })}
+        </nav>
+        <Link
+          href="/"
+          title={expanded ? undefined : 'Back to shop'}
+          className="mx-2 mt-auto flex h-11 items-center gap-3.5 rounded-lg px-3 text-sm font-medium whitespace-nowrap text-muted transition hover:bg-chip hover:text-ink"
+        >
+          <Icon name="logout" className="shrink-0 rotate-180" />
+          <span className={cn('transition-opacity duration-200', expanded ? 'opacity-100' : 'opacity-0')}>Back to shop</span>
+        </Link>
+      </aside>
+
+      {/* content: next to the icon rail on phones; follows the sidebar width on desktop */}
+      <main
+        id="main"
+        className={cn('min-w-0 py-6 pr-4 pl-20 transition-[padding] duration-300 sm:py-8 sm:pr-8', expanded ? 'md:pl-68' : 'md:pl-24')}
+      >
+        {children}
+      </main>
     </div>
   );
 }

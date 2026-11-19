@@ -11,7 +11,7 @@ export const CATEGORIES = [
 export const ROLES = ['user', 'seller', 'admin'] as const;
 export type Role = (typeof ROLES)[number];
 
-export const ORDER_STATUS = ['ORDER_PLACED', 'PROCESSING', 'SHIPPED', 'DELIVERED', 'CANCELLED'] as const;
+export const ORDER_STATUS = ['PENDING_PAYMENT', 'ORDER_PLACED', 'PROCESSING', 'SHIPPED', 'DELIVERED', 'CANCELLED'] as const;
 
 export const PLAN = {
   TRIAL_DAYS: 7,

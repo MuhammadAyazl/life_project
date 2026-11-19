@@ -34,7 +34,10 @@ const orderSchema = new Schema(
     discount: { type: Number, default: 0 },
     total: { type: Number, required: true },
     coupon: { code: { type: String, default: null }, discount: { type: Number, default: 0 } },
-    paymentMethod: { type: String, enum: ['COD'], default: 'COD' },
+    paymentMethod: { type: String, enum: ['COD', 'CARD'], default: 'COD' },
+    // card orders: the Stripe Checkout Session that pays for them (one session can pay several store orders)
+    stripeSessionId: { type: String, default: null, index: true },
+    paidAt: { type: Date, default: null },
     isPaid: { type: Boolean, default: false },
     status: { type: String, enum: ORDER_STATUS, default: 'ORDER_PLACED', index: true },
   },

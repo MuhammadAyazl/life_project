@@ -1,7 +1,8 @@
 'use client';
 
 import Link from 'next/link';
-import { useState } from 'react';
+import { useEffect, useState } from 'react';
+import { useSearchParams } from 'next/navigation';
 import { AnimatePresence, motion } from 'framer-motion';
 import { api, errorMessage } from '@/lib/api';
 import { money } from '@/lib/format';
@@ -28,6 +29,16 @@ export function CartView() {
   const [perr, setPerr] = useState('');
   const [busy, setBusy] = useState(false);
   const [placed, setPlaced] = useState<number | null>(null);
+  const [method, setMethod] = useState<'COD' | 'CARD'>('COD');
+  const [cardOk, setCardOk] = useState(false);
+  const cancelled = useSearchParams().get('payment') === 'cancelled';
+
+  // card payments show up only when Stripe is configured on the server
+  useEffect(() => {
+    api<{ paymentsEnabled: boolean }>('/plans')
+      .then((r) => setCardOk(r.paymentsEnabled))
+      .catch(() => setCardOk(false));
+  }, []);
 
   if (!ready) return <Spinner />;
 
@@ -80,10 +91,16 @@ export function CartView() {
     if (!selected) return setPerr('Please add a delivery address.');
     setBusy(true);
     try {
-      const r = await api<{ total: number }>('/orders', {
+      const payWith = cardOk ? method : 'COD';
+      const r = await api<{ total: number; checkoutUrl?: string }>('/orders', {
         method: 'POST',
-        body: { items: lines.map((l) => ({ productId: l.id, qty: l.qty })), addressId: selected, couponCode: coupon?.code, paymentMethod: 'COD' },
+        body: { items: lines.map((l) => ({ productId: l.id, qty: l.qty })), addressId: selected, couponCode: coupon?.code, paymentMethod: payWith },
       });
+      if (r.checkoutUrl) {
+        // secure Stripe payment page; the cart is cleared once the payment is confirmed
+        window.location.assign(r.checkoutUrl);
+        return;
+      }
       clear();
       setPlaced(r.total);
       window.scrollTo({ top: 0, behavior: 'smooth' });
@@ -159,10 +176,29 @@ export function CartView() {
           <h2 className="mb-5 text-xl font-bold">Payment Summary</h2>
 
           <p className="mb-2 text-xs font-medium tracking-wide text-muted uppercase">Payment method</p>
-          <label className="flex items-center gap-2.5 py-1">
-            <input type="radio" checked readOnly className="size-4 accent-[var(--brand)]" /> Cash on delivery
+          <label className="flex cursor-pointer items-center gap-2.5 py-1">
+            <input type="radio" name="pay" checked={method === 'COD' || !cardOk} onChange={() => setMethod('COD')} className="size-4 accent-[var(--brand)]" />
+            Cash on delivery
           </label>
-          <p className="text-xs text-muted">Online card payments are coming soon.</p>
+          <label className={`flex items-center gap-2.5 py-1 ${cardOk ? 'cursor-pointer' : 'opacity-50'}`}>
+            <input
+              type="radio"
+              name="pay"
+              disabled={!cardOk}
+              checked={cardOk && method === 'CARD'}
+              onChange={() => setMethod('CARD')}
+              className="size-4 accent-[var(--brand)]"
+            />
+            <Icon name="card" size={18} /> Credit / debit card
+          </label>
+          <p className="text-xs text-muted">
+            {cardOk ? 'Card payments are processed securely by Stripe. We never see your card number.' : 'Card payments are not available right now.'}
+          </p>
+          {cancelled && (
+            <p className="mt-2 rounded-lg bg-chip p-2.5 text-xs" role="status">
+              Payment was cancelled - you were not charged. Your cart is still here.
+            </p>
+          )}
 
           {loading ? null : !user ? (
             <div className="mt-6 rounded-xl bg-chip p-4 text-sm">
@@ -219,7 +255,7 @@ export function CartView() {
                 <span>{money(subtotal - discount)}</span>
               </div>
               <Button className="mt-4 w-full" size="lg" loading={busy} onClick={placeOrder}>
-                Place Order
+                {cardOk && method === 'CARD' ? 'Pay with card' : 'Place Order'}
               </Button>
               {perr && (
                 <p className="mt-3 text-center text-sm text-danger" role="alert">

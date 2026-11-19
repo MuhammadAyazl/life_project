@@ -2,6 +2,7 @@ import express, { Router } from 'express';
 import type Stripe from 'stripe';
 import { env } from '../config/env.js';
 import { stripe, syncSubscription } from '../services/stripe.js';
+import { cancelUnpaidOrders, markOrdersPaid } from '../services/orderPayments.js';
 
 /**
  * Stripe webhook - the authoritative source for renewals, failed payments and cancellations.
@@ -26,6 +27,14 @@ router.post('/webhook', express.raw({ type: 'application/json', limit: '1mb' }),
       if (s.mode === 'subscription' && typeof s.subscription === 'string') {
         await syncSubscription(await stripe().subscriptions.retrieve(s.subscription));
       }
+      // card payment for orders: Stripe confirms the money arrived
+      if (s.mode === 'payment') await markOrdersPaid(s);
+      break;
+    }
+    case 'checkout.session.expired': {
+      // the customer left the payment page without paying: release the pending orders
+      const s = event.data.object;
+      if (s.mode === 'payment') await cancelUnpaidOrders(s.id);
       break;
     }
     case 'customer.subscription.created':

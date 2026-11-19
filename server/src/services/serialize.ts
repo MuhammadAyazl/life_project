@@ -14,6 +14,7 @@ export function publicUser(u: UserDoc, hasPassword?: boolean) {
     plan: effectivePlan(u),
     addresses: u.addresses,
     hasGoogle: !!u.googleId,
+    twoFactorEnabled: !!u.twoFactor?.enabled,
     hasPassword: hasPassword ?? undefined,
     createdAt: u.get('createdAt'),
   };

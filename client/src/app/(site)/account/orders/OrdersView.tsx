@@ -64,17 +64,19 @@ export function OrdersView() {
                 ))}
               </ul>
               <footer className="mt-4 flex flex-wrap items-center gap-3 text-sm text-muted">
-                <span>Cash on delivery · {o.isPaid ? 'Paid' : 'Not paid yet'}</span>
+                <span>
+                  {o.paymentMethod === 'CARD' ? 'Card' : 'Cash on delivery'} · {o.isPaid ? 'Paid' : o.status === 'CANCELLED' ? 'Not charged' : 'Not paid yet'}
+                </span>
                 {o.coupon?.code && <Badge>{o.coupon.code} −{o.coupon.discount}%</Badge>}
-                {['ORDER_PLACED', 'PROCESSING'].includes(o.status) && (
+                {['PENDING_PAYMENT', 'ORDER_PLACED', 'PROCESSING'].includes(o.status) && (
                   <Button
                     size="sm"
                     variant="ghost"
                     className="ml-auto text-danger"
                     onClick={async () => {
                       try {
-                        await api(`/orders/${o.id}/cancel`, { method: 'POST' });
-                        toast('Order cancelled');
+                        const r = await api<{ refunded?: boolean }>(`/orders/${o.id}/cancel`, { method: 'POST' });
+                        toast(r.refunded ? 'Order cancelled - refund sent to your card' : 'Order cancelled');
                         load();
                       } catch (e) {
                         toast(errorMessage(e), 'error');

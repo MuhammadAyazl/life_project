@@ -23,7 +23,9 @@ const SCRIPT = 'https://accounts.google.com/gsi/client';
  * "Continue with Google" using Google Identity Services. Google returns a signed ID token,
  * which our server verifies before creating the session. Hidden when GOOGLE_CLIENT_ID isn't set.
  */
-export function GoogleButton({ onSuccess, onError }: { onSuccess: (u: User) => void; onError: (m: string) => void }) {
+export type AuthResult = { user?: User; twoFactorRequired?: boolean; challenge?: string };
+
+export function GoogleButton({ onSuccess, onError }: { onSuccess: (r: AuthResult) => void; onError: (m: string) => void }) {
   const box = useRef<HTMLDivElement>(null);
   const [clientId, setClientId] = useState<string | null | undefined>(undefined);
 
@@ -41,8 +43,8 @@ export function GoogleButton({ onSuccess, onError }: { onSuccess: (u: User) => v
         client_id: clientId,
         callback: async ({ credential }) => {
           try {
-            const r = await api<{ user: User }>('/auth/google', { method: 'POST', body: { credential } });
-            onSuccess(r.user);
+            const r = await api<AuthResult>('/auth/google', { method: 'POST', body: { credential } });
+            onSuccess(r);
           } catch (e) {
             onError(errorMessage(e));
           }

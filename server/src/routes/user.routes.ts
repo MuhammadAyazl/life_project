@@ -5,9 +5,13 @@ import { requireAuth } from '../middleware/auth.js';
 import { User, type UserDoc } from '../models/User.js';
 import { badRequest, notFound, unauthorized } from '../utils/AppError.js';
 import { parse } from '../utils/validate.js';
-import { setAuthCookie, signToken } from '../utils/token.js';
+import { endAllSessions, startSession } from '../services/session.js';
 import { publicUser } from '../services/serialize.js';
 import { passwordRule } from './auth.routes.js';
+import { audit } from '../services/audit.js';
+import { assertPasswordNotBreached } from '../services/passwordPolicy.js';
+import QRCode from 'qrcode';
+import { decrypt, encrypt, newRecoveryCodes, newSecret, otpauthUrl, useRecoveryCode, verifyTotp } from '../services/twoFactor.js';
 import { imageUpload, removeUpload, saveImages } from '../middleware/upload.js';
 
 const router = Router();
@@ -61,6 +65,7 @@ router.patch('/me', async (req, res) => {
 
 router.post('/me/password', async (req, res) => {
   const data = parse(z.object({ currentPassword: z.string().max(128).optional(), newPassword: passwordRule }), req.body);
+  await assertPasswordNotBreached(data.newPassword);
   const user = (await User.findById(req.user!._id).select('+password')) as UserDoc;
   if (user.password) {
     if (!data.currentPassword || !(await bcrypt.compare(data.currentPassword, user.password))) {
@@ -69,9 +74,62 @@ router.post('/me/password', async (req, res) => {
   }
   user.password = await bcrypt.hash(data.newPassword, 12);
   user.tokenVersion += 1; // sign out every other device
+  audit(req, 'auth.password_changed', { actor: user });
   await user.save();
-  setAuthCookie(res, signToken(String(user._id), user.tokenVersion));
+  await endAllSessions(user._id);
+  await startSession(req, res, user); // this device stays signed in with a fresh session
   res.json({ ok: true });
+});
+
+/* ------------------------------ two-factor sign-in ------------------------------ */
+
+/** Step 1: create a secret and show it as a QR code (not active until a code is confirmed). */
+router.post('/me/2fa/setup', async (req, res) => {
+  const user = req.user!;
+  if (user.twoFactor?.enabled) throw badRequest('Two-factor sign-in is already on.');
+  const secret = newSecret();
+  await User.updateOne({ _id: user._id }, { 'twoFactor.pendingSecretEnc': encrypt(secret) });
+  const url = otpauthUrl(secret, user.email);
+  res.json({ secret, qr: await QRCode.toDataURL(url, { margin: 1, width: 220 }) });
+});
+
+/** Step 2: confirm one code from the app -> 2FA on, recovery codes shown once. */
+router.post('/me/2fa/enable', async (req, res) => {
+  const { code } = parse(z.object({ code: z.string().trim().regex(/^\d{6}$/, 'Enter the 6-digit code from your app.') }), req.body);
+  const user = (await User.findById(req.user!._id).select('+twoFactor.pendingSecretEnc')) as UserDoc;
+  const pending = user.twoFactor?.pendingSecretEnc;
+  if (!pending) throw badRequest('Start the setup again.');
+  const secret = decrypt(pending);
+  const step = verifyTotp(secret, code);
+  if (step === null) throw badRequest('That code is not correct. Make sure your phone time is automatic and try again.');
+  const { codes, hashes } = newRecoveryCodes();
+  user.set({
+    'twoFactor.enabled': true,
+    'twoFactor.secretEnc': encrypt(secret),
+    'twoFactor.pendingSecretEnc': null,
+    'twoFactor.recoveryHashes': hashes,
+    'twoFactor.lastStep': step,
+  });
+  await user.save();
+  audit(req, 'auth.2fa_enabled', { actor: user });
+  res.json({ user: publicUser(user), recoveryCodes: codes });
+});
+
+/** Turn 2FA off - needs the account password (if it has one) and a current code. */
+router.post('/me/2fa/disable', async (req, res) => {
+  const data = parse(z.object({ password: z.string().max(128).optional(), code: z.string().trim().min(6).max(20) }), req.body);
+  const user = (await User.findById(req.user!._id).select('+password +twoFactor.secretEnc +twoFactor.recoveryHashes')) as UserDoc;
+  if (!user.twoFactor?.enabled || !user.twoFactor.secretEnc) throw badRequest('Two-factor sign-in is already off.');
+  if (user.password && !(data.password && (await bcrypt.compare(data.password, user.password)))) {
+    throw unauthorized('Password is incorrect.');
+  }
+  const okCode = verifyTotp(decrypt(user.twoFactor.secretEnc), data.code.replace(/\s/g, '')) !== null ||
+    !!useRecoveryCode(data.code, user.twoFactor.recoveryHashes ?? []);
+  if (!okCode) throw unauthorized('That code is not correct.');
+  user.set({ 'twoFactor.enabled': false, 'twoFactor.secretEnc': null, 'twoFactor.recoveryHashes': [], 'twoFactor.lastStep': 0 });
+  await user.save();
+  audit(req, 'auth.2fa_disabled', { actor: user });
+  res.json({ user: publicUser(user) });
 });
 
 router.post('/me/addresses', async (req, res) => {

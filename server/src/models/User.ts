@@ -39,6 +39,17 @@ const userSchema = new Schema(
     addresses: { type: [addressSchema], default: [] },
     // bump to invalidate every issued JWT (logout everywhere / password change)
     tokenVersion: { type: Number, default: 0 },
+    // password reset: only a SHA-256 hash of the emailed token is stored, valid for 30 minutes
+    resetTokenHash: { type: String, default: null, select: false },
+    resetTokenExpires: { type: Date, default: null, select: false },
+    // two-factor sign-in (authenticator app). Secrets are AES-256-GCM encrypted at rest.
+    twoFactor: {
+      enabled: { type: Boolean, default: false },
+      secretEnc: { type: String, default: null, select: false },
+      pendingSecretEnc: { type: String, default: null, select: false },
+      recoveryHashes: { type: [String], default: [], select: false },
+      lastStep: { type: Number, default: 0, select: false }, // a used code can't be replayed
+    },
     failedLogins: { type: Number, default: 0 },
     lockUntil: { type: Date, default: null },
     lastLoginAt: { type: Date, default: null },

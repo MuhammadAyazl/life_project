@@ -33,9 +33,14 @@ function SectionHead({ title, sub }: { title: string; sub: string }) {
 
 export default async function HomePage() {
   const [latest, best] = await Promise.all([
-    serverGet<List>('/products?sort=newest&limit=4'),
-    serverGet<List>('/products?sort=best&limit=8'),
+    serverGet<List>('/products?sort=newest&limit=4', 15),
+    serverGet<List>('/products?sort=best&limit=24', 15),
   ]);
+  // Best Selling = products that have actually sold, minus the ones already shown in Latest,
+  // so the two sections never repeat each other. Hidden when nothing is left to show.
+  const latestIds = new Set(latest?.products.map((p) => p.id));
+  const bestSelling = (best?.products ?? []).filter((p) => p.sold > 0 && !latestIds.has(p.id)).slice(0, 8);
+
   const cats = CATEGORIES.map((c) => (
     <Link
       key={c}
@@ -76,13 +81,13 @@ export default async function HomePage() {
         </section>
       )}
 
-      {best && best.products.length > 0 && (
+      {bestSelling.length > 0 && (
         <section className="mt-20" aria-label="best products">
           <Reveal>
-            <SectionHead title="Best Selling" sub={`Showing ${best.products.length} of ${best.total} products`} />
+            <SectionHead title="Best Selling" sub={`Top ${bestSelling.length} by sales`} />
           </Reveal>
           <div className="mt-9">
-            <ProductGrid products={best.products} />
+            <ProductGrid products={bestSelling} />
           </div>
         </section>
       )}

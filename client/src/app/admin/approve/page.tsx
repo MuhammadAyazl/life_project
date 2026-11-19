@@ -2,7 +2,7 @@
 
 import { useEffect, useState } from 'react';
 import { AnimatePresence, motion } from 'framer-motion';
-import { api, errorMessage } from '@/lib/api';
+import { api, errorMessage, refreshStorefront } from '@/lib/api';
 import { useToast } from '@/components/providers/ToastProvider';
 import { Button } from '@/components/ui/Button';
 import { EmptyState, PageTitle, Spinner } from '@/components/ui/misc';
@@ -27,6 +27,7 @@ export default function ApproveStoresPage() {
     setBusy(s.id + d);
     try {
       await api(`/admin/stores/${s.id}/${d}`, { method: 'POST' });
+      refreshStorefront();
       setList((l) => l!.filter((x) => x.id !== s.id));
       toast(d === 'approve' ? `${s.name} approved` : `${s.name} rejected`);
     } catch (e) {

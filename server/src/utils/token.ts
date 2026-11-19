@@ -7,16 +7,17 @@ interface TokenPayload {
   sub: string;
   v: number; // tokenVersion - lets us revoke every session of a user
   r: boolean; // "remember me": long-lived cookie that survives closing the browser
+  s: string; // server-side session id (see models/Session.ts)
   iat?: number;
 }
 
 const DAY = 24 * 60 * 60;
 /** Without "remember me" the session lasts 1 day and ends when the browser closes. */
 const SHORT_TTL_DAYS = 1;
-const ttlDays = (remember: boolean) => (remember ? TOKEN_TTL_DAYS : SHORT_TTL_DAYS);
+export const ttlDays = (remember: boolean) => (remember ? TOKEN_TTL_DAYS : SHORT_TTL_DAYS);
 
-export function signToken(userId: string, tokenVersion: number, remember = true) {
-  return jwt.sign({ sub: userId, v: tokenVersion, r: remember }, env.JWT_SECRET, {
+export function signToken(userId: string, tokenVersion: number, remember: boolean, sessionId: string) {
+  return jwt.sign({ sub: userId, v: tokenVersion, r: remember, s: sessionId }, env.JWT_SECRET, {
     algorithm: 'HS256',
     expiresIn: `${ttlDays(remember)}d`,
   });
@@ -25,8 +26,9 @@ export function signToken(userId: string, tokenVersion: number, remember = true)
 export function verifyToken(token: string): TokenPayload | null {
   try {
     const p = jwt.verify(token, env.JWT_SECRET, { algorithms: ['HS256'] }) as jwt.JwtPayload;
-    return typeof p.sub === 'string' && typeof p.v === 'number'
-      ? { sub: p.sub, v: p.v, r: p.r !== false, iat: p.iat }
+    // tokens without a session id (issued before server-side sessions) are no longer accepted
+    return typeof p.sub === 'string' && typeof p.v === 'number' && typeof p.s === 'string'
+      ? { sub: p.sub, v: p.v, r: p.r !== false, s: p.s, iat: p.iat }
       : null;
   } catch {
     return null;

@@ -12,16 +12,16 @@ import { useToast } from '@/components/providers/ToastProvider';
 import { Button } from '@/components/ui/Button';
 import { Field } from '@/components/ui/Field';
 import { Icon } from '@/components/ui/Icon';
-import { GoogleButton } from './GoogleButton';
+import { GoogleButton, type AuthResult } from './GoogleButton';
+import { TwoFactorStep } from './TwoFactorStep';
 
+/** Length-based strength (OWASP ASVS): longer beats "complex". 12 is the minimum. */
 function passwordStrength(pw: string) {
-  let s = 0;
-  if (pw.length >= 8) s++;
-  if (pw.length >= 12) s++;
-  if (/[A-Z]/.test(pw) && /[a-z]/.test(pw)) s++;
-  if (/\d/.test(pw)) s++;
-  if (/[^A-Za-z0-9]/.test(pw)) s++;
-  return Math.min(4, s);
+  const unique = new Set(pw).size;
+  if (pw.length < 12 || unique < 5) return 1;
+  if (pw.length < 16) return 2;
+  if (pw.length < 20) return 3;
+  return 4;
 }
 
 export function AuthForm({ mode }: { mode: 'login' | 'signup' }) {
@@ -34,6 +34,7 @@ export function AuthForm({ mode }: { mode: 'login' | 'signup' }) {
 
   const [form, setForm] = useState({ firstName: '', lastName: '', email: '', password: '' });
   const [remember, setRemember] = useState(true);
+  const [challenge, setChallenge] = useState<string | null>(null); // set when 2FA code is needed
   const [err, setErr] = useState<unknown>(null);
   const [busy, setBusy] = useState(false);
   const set = (k: keyof typeof form) => (e: React.ChangeEvent<HTMLInputElement>) => setForm((f) => ({ ...f, [k]: e.target.value }));
@@ -47,6 +48,13 @@ export function AuthForm({ mode }: { mode: 'login' | 'signup' }) {
       router.refresh();
     },
     [setUser, toast, router, next, isSignup],
+  );
+  const handleResult = useCallback(
+    (r: AuthResult) => {
+      if (r.twoFactorRequired && r.challenge) setChallenge(r.challenge);
+      else if (r.user) done(r.user);
+    },
+    [done],
   );
   const googleError = useCallback((m: string) => setErr(new ApiError(400, m)), []);
 
@@ -108,7 +116,11 @@ export function AuthForm({ mode }: { mode: 'login' | 'signup' }) {
         {isSignup ? 'Join free - and try Plus free for 7 days.' : 'Welcome back! Please sign in to continue.'}
       </p>
 
-      <GoogleButton onSuccess={done} onError={googleError} />
+      {challenge ? (
+        <TwoFactorStep challenge={challenge} onDone={done} onBack={() => setChallenge(null)} />
+      ) : (
+      <>
+      <GoogleButton onSuccess={handleResult} onError={googleError} />
 
       <form
         noValidate
@@ -119,8 +131,8 @@ export function AuthForm({ mode }: { mode: 'login' | 'signup' }) {
           setErr(null);
           try {
             const body = isSignup ? { ...form, remember } : { email: form.email, password: form.password, remember };
-            const r = await api<{ user: User }>(`/auth/${mode}`, { method: 'POST', body });
-            done(r.user);
+            const r = await api<AuthResult>(`/auth/${mode}`, { method: 'POST', body });
+            handleResult(r);
           } catch (e) {
             setErr(e);
           } finally {
@@ -152,7 +164,7 @@ export function AuthForm({ mode }: { mode: 'login' | 'signup' }) {
             required
             value={form.password}
             onChange={set('password')}
-            placeholder={isSignup ? 'At least 8 characters, with a number' : 'Your password'}
+            placeholder={isSignup ? 'At least 12 characters - a short sentence works' : 'Your password'}
             error={fieldError(err, 'password')}
           />
           {isSignup && form.password && (
@@ -181,6 +193,11 @@ export function AuthForm({ mode }: { mode: 'login' | 'signup' }) {
           Keep me signed in
           <span className="text-xs opacity-75">(uncheck on a shared computer)</span>
         </label>
+        {!isSignup && (
+          <Link href="/forgot-password" className="-mt-2 justify-self-end text-sm font-medium text-brand hover:underline">
+            Forgot password?
+          </Link>
+        )}
 
         {general && (
           <p role="alert" className="rounded-lg bg-danger/10 px-3 py-2 text-sm font-medium text-danger">
@@ -202,6 +219,8 @@ export function AuthForm({ mode }: { mode: 'login' | 'signup' }) {
           {isSignup ? 'Sign in' : 'Sign up'}
         </Link>
       </p>
+      </>
+      )}
     </motion.div>
     </motion.div>
   );
